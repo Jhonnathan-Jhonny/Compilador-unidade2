@@ -1,194 +1,195 @@
 package com.uepb;
 
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.Map;
+import java.util.*;
 
-public class Calculator extends CompiladoresBaseVisitor<Double> {
-
-    private final Map<String, Double> variables = new HashMap<>();
-    private final Scope scope = new Scope(new LinkedList<>());
+public class Calculator extends CompiladoresBaseVisitor<Object> {
+    private final Map<String, Object> memory = new HashMap<>();
+    private final Scanner scanner = new Scanner(System.in);
 
     @Override
-    public Double visitProgram(CompiladoresParser.ProgramContext ctx) {
-        scope.startScope();
-        Double lastValue = null;
+    public Object visitProgram(CompiladoresParser.ProgramContext ctx) {
         for (var stmt : ctx.statement()) {
-            Double result = visit(stmt);
-            if (result != null) {
-                lastValue = result;
-            }
+            visit(stmt);
         }
-        return lastValue;
+        return null;
     }
 
     @Override
-    public Double visitVarDeclaration(CompiladoresParser.VarDeclarationContext ctx) {
-        String varName = ctx.ID().getText();
-        Double value = ctx.expr() != null ? visit(ctx.expr()) : 0.0;
-        variables.put(varName, value);
-        return value;
-    }
-
-    @Override
-    public Double visitAssignment(CompiladoresParser.AssignmentContext ctx) {
-        String varName = ctx.ID().getText();
-        Double value = visit(ctx.expr());
-        if (!variables.containsKey(varName)) {
-            throw new SemanticException("Variável não declarada: " + varName, ctx.ID().getSymbol());
+    public Object visitBlock(CompiladoresParser.BlockContext ctx) {
+        for (var stmt : ctx.statement()) {
+            visit(stmt);
         }
-        variables.put(varName, value);
-        return value;
+        return null;
     }
 
     @Override
-    public Double visitPrintStatement(CompiladoresParser.PrintStatementContext ctx) {
-        Double value = visit(ctx.expr());
+    public Object visitVarDeclaration(CompiladoresParser.VarDeclarationContext ctx) {
+        String id = ctx.ID().getText();
+        Object value = ctx.expr() != null ? visit(ctx.expr()) : null;
+        memory.put(id, value);
+        return null;
+    }
+
+    @Override
+    public Object visitAssignment(CompiladoresParser.AssignmentContext ctx) {
+        String id = ctx.ID().getText();
+        Object value = visit(ctx.expr());
+        memory.put(id, value);
+        return null;
+    }
+
+    @Override
+    public Object visitPrintStatement(CompiladoresParser.PrintStatementContext ctx) {
+        Object value = visit(ctx.expr());
         System.out.println(value);
         return null;
     }
 
     @Override
-    public Double visitInputStatement(CompiladoresParser.InputStatementContext ctx) {
-        String varName = ctx.ID().getText();
-        Double value = 0.0; // Entrada simulada
-        variables.put(varName, value);
-        return value;
-    }
-
-    @Override
-    public Double visitIfStatement(CompiladoresParser.IfStatementContext ctx) {
-        boolean condition = visit(ctx.expr()) != 0.0;
-        if (condition) {
-            return visit(ctx.statement(0));
-        } else if (ctx.ELSE() != null) {
-            return visit(ctx.statement(1));
+    public Object visitInputStatement(CompiladoresParser.InputStatementContext ctx) {
+        String id = ctx.ID().getText();
+        System.out.print(id + ": ");
+        String input = scanner.nextLine();
+        try {
+            if (input.contains(".")) {
+                memory.put(id, Double.parseDouble(input));
+            } else {
+                memory.put(id, Integer.parseInt(input));
+            }
+        } catch (Exception e) {
+            memory.put(id, input);
         }
-        return 0.0;
+        return null;
     }
 
     @Override
-    public Double visitWhileStatement(CompiladoresParser.WhileStatementContext ctx) {
-        Double result = 0.0;
-        while (visit(ctx.expr()) != 0.0) {
-            result = visit(ctx.statement());
+    public Object visitIfStatement(CompiladoresParser.IfStatementContext ctx) {
+        Object cond = visit(ctx.expr());
+        if (asBoolean(cond)) {
+            visit(ctx.statement(0));
+        } else if (ctx.statement().size() > 1) {
+            visit(ctx.statement(1));
         }
-        return result;
+        return null;
     }
 
     @Override
-    public Double visitLogicalOrExpr(CompiladoresParser.LogicalOrExprContext ctx) {
-        Double result = visit(ctx.logicalAndExpr(0));
+    public Object visitWhileStatement(CompiladoresParser.WhileStatementContext ctx) {
+        while (asBoolean(visit(ctx.expr()))) {
+            visit(ctx.statement());
+        }
+        return null;
+    }
+
+    // Expressões
+    @Override
+    public Object visitExpr(CompiladoresParser.ExprContext ctx) {
+        return visit(ctx.logicalOrExpr());
+    }
+
+    @Override
+    public Object visitLogicalOrExpr(CompiladoresParser.LogicalOrExprContext ctx) {
+        Object result = visit(ctx.logicalAndExpr(0));
         for (int i = 1; i < ctx.logicalAndExpr().size(); i++) {
-            if (result != 0.0) return 1.0;
-            result = visit(ctx.logicalAndExpr(i));
+            result = asBoolean(result) || asBoolean(visit(ctx.logicalAndExpr(i)));
         }
-        return result != 0.0 ? 1.0 : 0.0;
+        return result;
     }
 
     @Override
-    public Double visitLogicalAndExpr(CompiladoresParser.LogicalAndExprContext ctx) {
-        Double result = visit(ctx.equalityExpr(0));
+    public Object visitLogicalAndExpr(CompiladoresParser.LogicalAndExprContext ctx) {
+        Object result = visit(ctx.equalityExpr(0));
         for (int i = 1; i < ctx.equalityExpr().size(); i++) {
-            if (result == 0.0) return 0.0;
-            result = visit(ctx.equalityExpr(i));
+            result = asBoolean(result) && asBoolean(visit(ctx.equalityExpr(i)));
         }
-        return result != 0.0 ? 1.0 : 0.0;
+        return result;
     }
 
     @Override
-    public Double visitEqualityExpr(CompiladoresParser.EqualityExprContext ctx) {
-        Double left = visit(ctx.relationalExpr(0));
-        if (ctx.EQ() != null) {
-            Double right = visit(ctx.relationalExpr(1));
-            return left.equals(right) ? 1.0 : 0.0;
-        } else if (ctx.NOTEQ() != null) {
-            Double right = visit(ctx.relationalExpr(1));
-            return !left.equals(right) ? 1.0 : 0.0;
-        }
-        return left;
+    public Object visitEqualityExpr(CompiladoresParser.EqualityExprContext ctx) {
+        Object left = visit(ctx.relationalExpr(0));
+        if (ctx.relationalExpr().size() == 1) return left;
+        Object right = visit(ctx.relationalExpr(1));
+        return ctx.EQ() != null ? Objects.equals(left, right) : !Objects.equals(left, right);
     }
 
     @Override
-    public Double visitRelationalExpr(CompiladoresParser.RelationalExprContext ctx) {
-        Double left = visit(ctx.additiveExpr(0));
-        if (ctx.LT() != null) {
-            return left < visit(ctx.additiveExpr(1)) ? 1.0 : 0.0;
-        } else if (ctx.GT() != null) {
-            return left > visit(ctx.additiveExpr(1)) ? 1.0 : 0.0;
-        }
-        return left;
+    public Object visitRelationalExpr(CompiladoresParser.RelationalExprContext ctx) {
+        Object left = visit(ctx.additiveExpr(0));
+        if (ctx.additiveExpr().size() == 1) return left;
+        Object right = visit(ctx.additiveExpr(1));
+        double l = asDouble(left), r = asDouble(right);
+        return ctx.LT() != null ? l < r : l > r;
     }
 
     @Override
-    public Double visitAdditiveExpr(CompiladoresParser.AdditiveExprContext ctx) {
-        Double result = visit(ctx.multiplicativeExpr(0));
+    public Object visitAdditiveExpr(CompiladoresParser.AdditiveExprContext ctx) {
+        Object result = visit(ctx.multiplicativeExpr(0));
         for (int i = 1; i < ctx.multiplicativeExpr().size(); i++) {
-            if (ctx.getChild(2 * i - 1).getText().equals("+")) {
-                result += visit(ctx.multiplicativeExpr(i));
-            } else {
-                result -= visit(ctx.multiplicativeExpr(i));
-            }
+            double left = asDouble(result);
+            double right = asDouble(visit(ctx.multiplicativeExpr(i)));
+            result = ctx.PLUS(i - 1) != null ? left + right : left - right;
         }
         return result;
     }
 
     @Override
-    public Double visitMultiplicativeExpr(CompiladoresParser.MultiplicativeExprContext ctx) {
-        Double result = visit(ctx.powerExpr(0));
+    public Object visitMultiplicativeExpr(CompiladoresParser.MultiplicativeExprContext ctx) {
+        Object result = visit(ctx.powerExpr(0));
         for (int i = 1; i < ctx.powerExpr().size(); i++) {
-            if (ctx.getChild(2 * i - 1).getText().equals("*")) {
-                result *= visit(ctx.powerExpr(i));
-            } else {
-                result /= visit(ctx.powerExpr(i));
-            }
+            double left = asDouble(result);
+            double right = asDouble(visit(ctx.powerExpr(i)));
+            result = ctx.MULT(i - 1) != null ? left * right : left / right;
         }
         return result;
     }
 
     @Override
-    public Double visitPowerExpr(CompiladoresParser.PowerExprContext ctx) {
-        if (ctx.POW() != null) {
-            return Math.pow(visit(ctx.unaryExpr()), visit(ctx.powerExpr()));
+    public Object visitPowerExpr(CompiladoresParser.PowerExprContext ctx) {
+        Object base = visit(ctx.unaryExpr());
+        if (ctx.powerExpr() != null) {
+            return Math.pow(asDouble(base), asDouble(visit(ctx.powerExpr())));
         }
-        return visit(ctx.unaryExpr());
+        return base;
     }
 
     @Override
-    public Double visitUnaryExpr(CompiladoresParser.UnaryExprContext ctx) {
-        // Último filho sempre será o primaryExpr
-        Double value = visit(ctx.getChild(ctx.getChildCount() - 1));
+    public Object visitUnaryExpr(CompiladoresParser.UnaryExprContext ctx) {
+        Object value = visit(ctx.primaryExpr());
         for (int i = ctx.getChildCount() - 2; i >= 0; i--) {
             String op = ctx.getChild(i).getText();
-            switch (op) {
-                case "-": value = -value; break;
-                case "+": break; // nada
-                case "not": value = value == 0.0 ? 1.0 : 0.0; break;
-            }
+            if (op.equals("-")) value = -asDouble(value);
+            else if (op.equals("not")) value = !asBoolean(value);
         }
         return value;
     }
 
     @Override
-    public Double visitPrimaryExpr(CompiladoresParser.PrimaryExprContext ctx) {
+    public Object visitPrimaryExpr(CompiladoresParser.PrimaryExprContext ctx) {
         if (ctx.NUMBER() != null) {
-            return Double.parseDouble(ctx.NUMBER().getText());
+            return ctx.NUMBER().getText().contains(".") ?
+                    Double.parseDouble(ctx.NUMBER().getText()) :
+                    Integer.parseInt(ctx.NUMBER().getText());
+        } else if (ctx.STRING() != null) {
+            return ctx.STRING().getText().replaceAll("^\"|\"$", "");
         } else if (ctx.ID() != null) {
-            String varName = ctx.ID().getText();
-            if (!variables.containsKey(varName)) {
-                throw new SemanticException("Variável não declarada: " + varName, ctx.ID().getSymbol());
-            }
-            return variables.get(varName);
-        } else if (ctx.expr() != null) {
-            return visit(ctx.expr());
+            return memory.getOrDefault(ctx.ID().getText(), 0);
         } else if (ctx.booleanLiteral() != null) {
-            return visitBooleanLiteral(ctx.booleanLiteral());
+            return ctx.booleanLiteral().getText().equals("true");
+        } else {
+            return visit(ctx.expr());
         }
-        return 0.0;
     }
 
-    @Override
-    public Double visitBooleanLiteral(CompiladoresParser.BooleanLiteralContext ctx) {
-        return ctx.TRUE() != null ? 1.0 : 0.0;
+    private boolean asBoolean(Object value) {
+        if (value instanceof Boolean) return (Boolean) value;
+        if (value instanceof Number) return ((Number) value).doubleValue() != 0;
+        return value != null;
+    }
+
+    private double asDouble(Object value) {
+        if (value instanceof Number) return ((Number) value).doubleValue();
+        throw new RuntimeException("Esperado número, encontrado: " + value);
     }
 }
+

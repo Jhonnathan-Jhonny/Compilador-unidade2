@@ -4,31 +4,32 @@ import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.tree.*;
 
 import java.io.IOException;
-/*
-Fazer o que harlem ensinou em sala: Atribuir nomes as varáveis na gramática
-ex:
-antes: equalityExpr:  relationalExpr ((EQ | NOTEQ) relationalExpr)?;
-depois: equalityExpr: RELATIONAL_EXPR1 = relationalExpr ((EQ | NOTEQ) RELATIONAL_EXPRS = relationalExpr)?;
-*/
+import java.nio.file.Files;
+import java.nio.file.Paths;
+
 public class Main {
     public static void main(String[] args) throws IOException {
-        CharStream input = CharStreams.fromFileName(args[0]);
-        CompiladoresLexer lexer = new CompiladoresLexer(input);
-        CommonTokenStream tokens = new CommonTokenStream(lexer);
-        CompiladoresParser parser = new CompiladoresParser(tokens);
-        ParseTree tree = parser.program();
-
-        if (parser.getNumberOfSyntaxErrors() > 0) {
-            System.err.println("Erro de sintaxe. Verifique o código de entrada.");
+        // Verifica se o arquivo foi passado como argumento
+        if (args.length == 0) {
+            System.err.println("Uso: java -jar compiler.jar <arquivo.lang>");
             return;
         }
 
-        var calculator = new Calculator();
-        Double valor = calculator.visit(tree);
+        // Lê o conteúdo do arquivo
+        String filePath = args[0];
+        String code = Files.readString(Paths.get(filePath));
 
-        // Só mostra o valor final se não for null
-        if (valor != null) {
-            System.out.println("Valor final: " + valor);
-        }
+        // Cria lexer, parser e analisa o código
+        CharStream input = CharStreams.fromString(code);
+        CompiladoresLexer lexer = new CompiladoresLexer(input);
+        CommonTokenStream tokens = new CommonTokenStream(lexer);
+        CompiladoresParser parser = new CompiladoresParser(tokens);
+
+        // Obtém a árvore de parsing
+        ParseTree tree = parser.program();
+
+        // Visita com Calculator
+        Calculator calculator = new Calculator();
+        calculator.visit(tree);
     }
 }
