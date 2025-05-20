@@ -1,1 +1,5 @@
 var x = 10;
+var y = x + 5;
+if (y > 10) {
+    print("Y é maior que 10");
+}
