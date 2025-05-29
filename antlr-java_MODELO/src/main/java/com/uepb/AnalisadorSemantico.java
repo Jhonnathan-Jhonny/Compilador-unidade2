@@ -2,7 +2,7 @@ package com.uepb;
 
 import java.util.*;
 
-public class Calculator extends CompiladoresBaseVisitor<Object> {
+public class AnalisadorSemantico extends CompiladoresBaseVisitor<Object> {
     private final Map<String, Object> memory = new HashMap<>();
     private final Scanner scanner = new Scanner(System.in);
 

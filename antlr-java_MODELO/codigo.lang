@@ -1,2 +1,1 @@
-var x = 5*2+;
-print(x);
+print(2 < 3 and 2 == 2);
