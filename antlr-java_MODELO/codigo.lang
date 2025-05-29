@@ -1,2 +1,34 @@
-var a = 2^2^2;
-print(a);
+// Checks if a number is prime and calculates the power
+
+var number;
+var exponent;
+var i = 2;
+var isPrime = true;
+var result;
+var quotient;
+var product;
+
+input(number);
+input(exponent);
+
+if (number < 1 or number ==1) {
+    isPrime = false;
+}
+
+while (i < number and isPrime == true) {
+    quotient = number / i;
+    product = quotient * i;
+    if (product == number) {
+        isPrime = false;
+    }
+    i = i + 1;
+}
+
+if (isPrime == true) {
+    print("The number is prime");
+    result = number ^ exponent;
+    print("Power:");
+    print(result);
+} else {
+    print("The number is not prime");
+}

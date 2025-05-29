@@ -54,6 +54,7 @@ public class Main {
         CompiladoresLexer lexer = new CompiladoresLexer(input);
         CommonTokenStream tokens = new CommonTokenStream(lexer);
         CompiladoresParser parser = new CompiladoresParser(tokens);
+        AnalisadorSemantico analisador = new AnalisadorSemantico();
 
         // Obtém a árvore de parsing
         ParseTree tree = parser.program();
