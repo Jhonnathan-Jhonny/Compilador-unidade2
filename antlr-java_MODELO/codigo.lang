@@ -1,1 +1,2 @@
-print(2 < 3 and 2 == 2);
+var a = 2^2^2;
+print(a);

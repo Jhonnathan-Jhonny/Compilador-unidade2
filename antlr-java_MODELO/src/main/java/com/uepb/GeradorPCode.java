@@ -1,14 +1,10 @@
 package com.uepb;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 public class GeradorPCode extends CompiladoresBaseVisitor<Void> {
     private final List<String> pcode = new ArrayList<>();
     private final Map<String, Integer> variables = new HashMap<>();
-    private final Map<String, Integer> labels = new HashMap<>();
     private int nextAddress = 0;
     private int labelCounter = 0;
 
@@ -16,13 +12,16 @@ public class GeradorPCode extends CompiladoresBaseVisitor<Void> {
         return pcode;
     }
 
+    private void add(String instr) {
+        pcode.add(instr);
+    }
+
     @Override
     public Void visitProgram(CompiladoresParser.ProgramContext ctx) {
-        // Processa todas as instruções apenas uma vez
         for (var stmt : ctx.statement()) {
             visit(stmt);
         }
-        pcode.add("stp");
+        add("stp");
         return null;
     }
 
@@ -42,8 +41,8 @@ public class GeradorPCode extends CompiladoresBaseVisitor<Void> {
         }
         if (ctx.expr() != null) {
             visit(ctx.expr());
-            pcode.add("lda #" + variables.get(id));
-            pcode.add("sto");
+            add("lda #" + variables.get(id));
+            add("sto");
         }
         return null;
     }
@@ -55,15 +54,15 @@ public class GeradorPCode extends CompiladoresBaseVisitor<Void> {
         if (!variables.containsKey(id)) {
             variables.put(id, nextAddress++);
         }
-        pcode.add("lda #" + variables.get(id));
-        pcode.add("sto");
+        add("lda #" + variables.get(id));
+        add("sto");
         return null;
     }
 
     @Override
     public Void visitPrintStatement(CompiladoresParser.PrintStatementContext ctx) {
         visit(ctx.expr());
-        pcode.add("wri");
+        add("wri");
         return null;
     }
 
@@ -73,28 +72,26 @@ public class GeradorPCode extends CompiladoresBaseVisitor<Void> {
         if (!variables.containsKey(id)) {
             variables.put(id, nextAddress++);
         }
-        pcode.add("rd");
-        pcode.add("lda #" + variables.get(id));
-        pcode.add("sto");
+        add("rd");
+        add("lda #" + variables.get(id));
+        add("sto");
         return null;
     }
 
     @Override
     public Void visitIfStatement(CompiladoresParser.IfStatementContext ctx) {
-        visit(ctx.expr());
         String elseLabel = "L" + labelCounter++;
         String endLabel = "L" + labelCounter++;
-
-        pcode.add("fjp " + elseLabel);
+        visit(ctx.expr());
+        add("fjp " + elseLabel);
         visit(ctx.statement(0));
-
         if (ctx.ELSE() != null) {
-            pcode.add("pip " + endLabel);
-            pcode.add(elseLabel + ":");
+            add("pip " + endLabel);
+            add(elseLabel + ":");
             visit(ctx.statement(1));
-            pcode.add(endLabel + ":");
+            add(endLabel + ":");
         } else {
-            pcode.add(elseLabel + ":");
+            add(elseLabel + ":");
         }
         return null;
     }
@@ -103,42 +100,64 @@ public class GeradorPCode extends CompiladoresBaseVisitor<Void> {
     public Void visitWhileStatement(CompiladoresParser.WhileStatementContext ctx) {
         String startLabel = "L" + labelCounter++;
         String endLabel = "L" + labelCounter++;
-
-        pcode.add(startLabel + ":");
+        add(startLabel + ":");
         visit(ctx.expr());
-        pcode.add("fjp " + endLabel);
+        add("fjp " + endLabel);
         visit(ctx.statement());
-        pcode.add("pip " + startLabel);
-        pcode.add(endLabel + ":");
+        add("pip " + startLabel);
+        add(endLabel + ":");
         return null;
     }
 
-    // Expressões
     @Override
     public Void visitLogicalOrExpr(CompiladoresParser.LogicalOrExprContext ctx) {
-        visit(ctx.logicalAndExpr(0));
-        for (int i = 1; i < ctx.logicalAndExpr().size(); i++) {
-            pcode.add("ldc true");
-            pcode.add("neq");
-            pcode.add("fjp LOR_TRUE_" + labelCounter);
-            visit(ctx.logicalAndExpr(i));
-            pcode.add("or");
-            pcode.add("LOR_TRUE_" + labelCounter++ + ":");
+        int count = ctx.logicalAndExpr().size();
+        if (count == 1) {
+            return visit(ctx.logicalAndExpr(0));
         }
+
+        int label = labelCounter++;
+        String trueLabel = "LOR_TRUE_" + label;
+        String endLabel = "LOR_END_" + label;
+
+        for (int i = 0; i < count; i++) {
+            visit(ctx.logicalAndExpr(i));
+            add("tjp " + trueLabel);
+        }
+
+        add("ldc false");
+        add("pip " + endLabel);
+
+        add(trueLabel + ":");
+        add("ldc true");
+
+        add(endLabel + ":");
         return null;
     }
 
     @Override
     public Void visitLogicalAndExpr(CompiladoresParser.LogicalAndExprContext ctx) {
-        visit(ctx.equalityExpr(0));
-        for (int i = 1; i < ctx.equalityExpr().size(); i++) {
-            pcode.add("ldc false");
-            pcode.add("neq");
-            pcode.add("fjp LAND_FALSE_" + labelCounter);
-            visit(ctx.equalityExpr(i));
-            pcode.add("and");
-            pcode.add("LAND_FALSE_" + labelCounter++ + ":");
+        int count = ctx.equalityExpr().size();
+        if (count == 1) {
+            return visit(ctx.equalityExpr(0));
         }
+
+        int label = labelCounter++;
+        String falseLabel = "LAND_FALSE_" + label;
+        String endLabel = "LAND_END_" + label;
+
+        for (int i = 0; i < count; i++) {
+            visit(ctx.equalityExpr(i));
+            add("fjp " + falseLabel);
+        }
+
+        add("ldc true");
+        add("pip " + endLabel);
+
+        add(falseLabel + ":");
+        add("ldc false");
+
+        add(endLabel + ":");
         return null;
     }
 
@@ -148,9 +167,9 @@ public class GeradorPCode extends CompiladoresBaseVisitor<Void> {
         if (ctx.relationalExpr().size() > 1) {
             visit(ctx.relationalExpr(1));
             if (ctx.EQ() != null) {
-                pcode.add("equ");
+                add("equ");
             } else {
-                pcode.add("neq");
+                add("neq");
             }
         }
         return null;
@@ -162,9 +181,9 @@ public class GeradorPCode extends CompiladoresBaseVisitor<Void> {
         if (ctx.additiveExpr().size() > 1) {
             visit(ctx.additiveExpr(1));
             if (ctx.LT() != null) {
-                pcode.add("let");
-            } else {
-                pcode.add("grt");
+                add("let");
+            } else if (ctx.GT() != null) {
+                add("grt");
             }
         }
         return null;
@@ -175,10 +194,10 @@ public class GeradorPCode extends CompiladoresBaseVisitor<Void> {
         visit(ctx.multiplicativeExpr(0));
         for (int i = 1; i < ctx.multiplicativeExpr().size(); i++) {
             visit(ctx.multiplicativeExpr(i));
-            if (ctx.PLUS(i - 1) != null) {
-                pcode.add("add");
+            if (ctx.getChild(2 * i - 1).getText().equals("+")) {
+                add("add");
             } else {
-                pcode.add("sub");
+                add("sub");
             }
         }
         return null;
@@ -189,10 +208,10 @@ public class GeradorPCode extends CompiladoresBaseVisitor<Void> {
         visit(ctx.powerExpr(0));
         for (int i = 1; i < ctx.powerExpr().size(); i++) {
             visit(ctx.powerExpr(i));
-            if (ctx.MULT(i - 1) != null) {
-                pcode.add("mul");
+            if (ctx.getChild(2 * i - 1).getText().equals("*")) {
+                add("mul");
             } else {
-                pcode.add("div");
+                add("div");
             }
         }
         return null;
@@ -202,12 +221,10 @@ public class GeradorPCode extends CompiladoresBaseVisitor<Void> {
     public Void visitPowerExpr(CompiladoresParser.PowerExprContext ctx) {
         visit(ctx.unaryExpr());
         if (ctx.powerExpr() != null) {
-            // Implementação de potência usando multiplicações (simplificação)
-            // Para uma implementação real, seria necessário um loop ou função matemática
             visit(ctx.powerExpr());
-            pcode.add("to float"); // Garante que são floats
-            pcode.add("to float");
-            pcode.add("call POW_FUNCTION"); // Supondo uma função externa para potência
+            add("to float");
+            add("to float");
+            add("call POW_FUNCTION");
         }
         return null;
     }
@@ -218,11 +235,11 @@ public class GeradorPCode extends CompiladoresBaseVisitor<Void> {
         for (int i = ctx.getChildCount() - 2; i >= 0; i--) {
             String op = ctx.getChild(i).getText();
             if (op.equals("-")) {
-                pcode.add("ldc -1");
-                pcode.add("mul");
+                add("ldc -1");
+                add("mul");
             } else if (op.equals("not")) {
-                pcode.add("ldc false");
-                pcode.add("equ");
+                add("ldc false");
+                add("equ");
             }
         }
         return null;
@@ -231,17 +248,17 @@ public class GeradorPCode extends CompiladoresBaseVisitor<Void> {
     @Override
     public Void visitPrimaryExpr(CompiladoresParser.PrimaryExprContext ctx) {
         if (ctx.NUMBER() != null) {
-            pcode.add("ldc " + ctx.NUMBER().getText());
+            add("ldc " + ctx.NUMBER().getText());
         } else if (ctx.STRING() != null) {
-            pcode.add("ldc " + ctx.STRING().getText());
+            add("ldc " + ctx.STRING().getText());
         } else if (ctx.ID() != null) {
             String id = ctx.ID().getText();
             if (!variables.containsKey(id)) {
                 variables.put(id, nextAddress++);
             }
-            pcode.add("lod #" + variables.get(id));
+            add("lod #" + variables.get(id));
         } else if (ctx.booleanLiteral() != null) {
-            pcode.add("ldc " + ctx.booleanLiteral().getText());
+            add("ldc " + ctx.booleanLiteral().getText());
         } else if (ctx.expr() != null) {
             visit(ctx.expr());
         }

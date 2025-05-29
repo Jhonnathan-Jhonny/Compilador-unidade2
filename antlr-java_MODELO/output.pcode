@@ -1,13 +1,14 @@
 ldc 2
-ldc 3
-let
-ldc false
-neq
-fjp LAND_FALSE_0
 ldc 2
 ldc 2
-equ
-and
-LAND_FALSE_0:
+to float
+to float
+call POW_FUNCTION
+to float
+to float
+call POW_FUNCTION
+lda #0
+sto
+lod #0
 wri
 stp
