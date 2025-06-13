@@ -1,93 +1,14 @@
-ldc 2
-lda #2
-sto
-ldc true
-lda #3
-sto
-rd
+ldc 1
 lda #0
 sto
-rd
-lda #1
-sto
-lod #0
-ldc 1
-let
-tjp LOR_TRUE_2
-lod #0
-ldc 1
-equ
-tjp LOR_TRUE_2
-ldc false
-pip LOR_END_2
-LOR_TRUE_2:
 ldc true
-LOR_END_2:
 fjp L0
-ldc false
-lda #3
+ldc 2
+lda #0
 sto
+lod #0
+wri
 L0:
-L3:
-lod #2
 lod #0
-let
-fjp LAND_FALSE_5
-lod #3
-ldc true
-equ
-fjp LAND_FALSE_5
-ldc true
-pip LAND_END_5
-LAND_FALSE_5:
-ldc false
-LAND_END_5:
-fjp L4
-lod #0
-lod #2
-div
-lda #5
-sto
-lod #5
-lod #2
-mul
-lda #6
-sto
-lod #6
-lod #0
-equ
-fjp L6
-ldc false
-lda #3
-sto
-L6:
-lod #2
-ldc 1
-add
-lda #2
-sto
-pip L3
-L4:
-lod #3
-ldc true
-equ
-fjp L8
-ldc "The number is prime"
 wri
-lod #0
-lod #1
-to float
-to float
-call POW_FUNCTION
-lda #4
-sto
-ldc "Power:"
-wri
-lod #4
-wri
-pip L9
-L8:
-ldc "The number is not prime"
-wri
-L9:
 stp
